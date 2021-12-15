@@ -6,7 +6,6 @@ import pandas as pd
 from scipy import constants
 from scipy import signal
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import os
 import datetime
 import sys

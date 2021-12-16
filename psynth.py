@@ -429,18 +429,18 @@ class PhasedArray(object):
             self.element_factor_theta = np.ones((181,361))/np.sqrt(2)
             self.element_factor_phi = np.ones((181,361))/np.sqrt(2)
             self.element_factor_abs = np.ones((181,361))
-        elif os.path.exists('data/farfield/{}_theta_abs.csv'.format(filename)):
-            EFtheta_mag = pd.read_csv('data/farfield/{}_theta_abs.csv'.format(filename), header=None).values
-            EFtheta_angle = pd.read_csv('data/farfield/{}_theta_angle.csv'.format(filename), header=None).values
-            EFphi_mag = pd.read_csv('data/farfield/{}_phi_abs.csv'.format(filename), header=None).values
-            EFphi_angle = pd.read_csv('data/farfield/{}_phi_angle.csv'.format(filename), header=None).values
-            EFabs = pd.read_csv('data/farfield/{}_abs.csv'.format(filename), header=None).values
+        elif os.path.exists('{}_theta_abs.csv'.format(filename)):
+            EFtheta_mag = pd.read_csv('{}_theta_abs.csv'.format(filename), header=None).values
+            EFtheta_angle = pd.read_csv('{}_theta_angle.csv'.format(filename), header=None).values
+            EFphi_mag = pd.read_csv('{}_phi_abs.csv'.format(filename), header=None).values
+            EFphi_angle = pd.read_csv('{}_phi_angle.csv'.format(filename), header=None).values
+            EFabs = pd.read_csv('{}_abs.csv'.format(filename), header=None).values
             self.element_factor_theta = EFtheta_mag * np.exp(1j*EFtheta_angle)
             self.element_factor_phi = EFphi_mag * np.exp(1j*EFphi_angle)
             self.element_factor_abs = np.sqrt(EFtheta_mag**2 + EFphi_mag**2)
         else:
             if software=='cst':
-                df = pd.read_table('data/farfield/{}.txt'.format(filename), header=None, skiprows=2, delimiter='\s+')
+                df = pd.read_table('{}.txt'.format(filename), header=None, skiprows=2, delimiter='\s+')
                 data = df.values
 
                 data0 = data[:,[0,1,2]] # Gain (Linear, unit:W)
@@ -482,11 +482,11 @@ class PhasedArray(object):
                 Ephi_angle = np.angle(Ephi)
 
 
-            pd.DataFrame(Etheta_mag).to_csv('data/farfield/' + filename + '_theta_abs.csv',header=None,index=None)
-            pd.DataFrame(Etheta_angle).to_csv('data/farfield/' + filename + '_theta_angle.csv',header=None,index=None)
-            pd.DataFrame(Ephi_mag).to_csv('data/farfield/' + filename + '_phi_abs.csv',header=None,index=None)
-            pd.DataFrame(Ephi_angle).to_csv('data/farfield/' + filename + '_phi_angle.csv',header=None,index=None)
-            pd.DataFrame(Eabs).to_csv('data/farfield/' + filename + '_abs.csv',header=None,index=None)
+            pd.DataFrame(Etheta_mag).to_csv('{}_theta_abs.csv'.format(filename),header=None,index=None)
+            pd.DataFrame(Etheta_angle).to_csv('{}_theta_angle.csv'.format(filename),header=None,index=None)
+            pd.DataFrame(Ephi_mag).to_csv('{}_phi_abs.csv'.format(filename),header=None,index=None)
+            pd.DataFrame(Ephi_angle).to_csv('{}_phi_angle.csv'.format(filename),header=None,index=None)
+            pd.DataFrame(Eabs).to_csv('{}_abs.csv'.format(filename),header=None,index=None)
             self.element_factor_theta = Etheta
             self.element_factor_phi = Ephi
             self.element_factor_abs = Eabs

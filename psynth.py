@@ -598,7 +598,7 @@ class PhasedArray(object):
         sidelobe_angle = self.farfield_plot_angle[signal.argrelmax(self.farfield_plot_gain)]
         sidelobe_level = self.farfield_plot_gain[signal.argrelmax(self.farfield_plot_gain)] - gain_max
         sidelobe = np.vstack([sidelobe_angle,sidelobe_level])
-        for i, (sla, sll) in enumerate(zip(sidelobe)):
+        for i, (sla, sll) in enumerate(zip(sidelobe[0],sidelobe[1])):
             print("{0}.   Side Lobe Angle: {1} deg   Side Lobe Level: {2} dB\n".format(i,sla,sll))
         return sidelobe
 

@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 filename1 = "data/farfield/patch_on_npc-f260a"
 pa1=psynth.PhasedArray(frequency=5.74,element_num_x=8, element_num_y=8, element_interval_x=36.6, element_interval_y=36.6)
 ### Modify array weight ###
-pa1.beam_focus(800)
+# pa1.beam_focus(800)
 # pa1.beam_steering(theta_x=20)
 # pa1.gauss_window(taper_db_x=10,taper_db_y=10)
 # pa1.chebyshev_window(null_angle_y=10)

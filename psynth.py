@@ -38,8 +38,8 @@ class PhasedArray(object):
         self.element_int_y = element_interval_y
         self.antenna_pos_x = np.arange(-(self.element_num_x-1)/2.0, (self.element_num_x+1)/2.0, 1.0)*element_interval_x/1000
         self.antenna_pos_y = np.arange(-(self.element_num_y-1)/2.0, (self.element_num_y+1)/2.0, 1.0)*element_interval_y/1000
-        self.element_int_wl_x = element_interval_x/self.wavelength # Unit [None]
-        self.element_int_wl_y = element_interval_y/self.wavelength # Unit [None]
+        self.element_int_wl_x = element_interval_x/self.wavelength/1000 # Unit [None]
+        self.element_int_wl_y = element_interval_y/self.wavelength/1000 # Unit [None]
         self.antenna_pos_x_mesh, self.antenna_pos_y_mesh = np.meshgrid(self.antenna_pos_x, self.antenna_pos_y)
         self.array_manner = "square"
         self.array_weight = np.ones((self.element_num_y,self.element_num_x),dtype='complex128')/ np.sqrt(self.element_num_y*self.element_num_x)

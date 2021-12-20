@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import os
 import datetime
 import sys
+import seaborn as sns
 
 def P(n, r):
     return math.factorial(n)//math.factorial(n-r)
@@ -332,6 +333,46 @@ class PhasedArray(object):
         df.T.set_index(pd.MultiIndex(levels=[["# Created by",""],["# Element","X","Y","Z","Magnitude","Phase","Phi","Theta","Gamma"]],\
                 codes=[[0,1,1,1,1,1,1,1,1],[0,1,2,3,4,5,6,7,8]])).T.\
                 to_csv('weight/{}/{}/{}.tsv'.format(self.excitation_manner,today,filename),sep='\t',index=False)
+
+        return self
+
+    def plot_array_weight(self,savename="array_weight_2d"):
+        try:
+            power = 10*np.log10(abs(self.array_weight)**2 * self.input_power*1000) # [dBm]
+        except AttributeError:
+            power = 10*np.log10(abs(self.array_weight)**2 *1000) # [dBm] Input = 1W
+        phase = np.rad2deg(np.angle(self.array_weight))
+        index = np.arange(self.element_num_y,0,-1)
+        columns = np.arange(1,self.element_num_x+1)
+        df1 = pd.DataFrame(power,index=index,columns=columns)
+        df2 = pd.DataFrame(phase,index=index,columns=columns)
+
+        # Power Distribution Mapping [dBm]
+        fig1 = plt.figure(figsize=(12,8))
+        ax1 = fig1.add_subplot(111)
+        ax1.set_aspect("equal")
+        sns.heatmap(df1,linewidth=1,cmap="jet",xticklabels=3,yticklabels=3)
+        ax1.figure.axes[-1].set_ylabel("Power (dBm)",fontsize=26)
+        ax1.figure.axes[-1].tick_params(labelsize=26)
+        ax1.tick_params(labelsize=26)
+        ax1.set_xlabel("Element number (X axis)",fontsize=26)
+        ax1.set_ylabel("Element number (Y axis)",fontsize=26)
+        fig1.tight_layout()
+        os.makedirs("synthesis-result/{}/array_weight".format(today),exist_ok=True)
+        fig1.savefig("synthesis-result/{}/array_weight/{}_power.jpeg".format(today,savename))
+
+        # Phase Distribution Mapping [deg]
+        fig2 = plt.figure(figsize=(12,8))
+        ax2 = fig2.add_subplot(111)
+        ax2.set_aspect("equal")
+        sns.heatmap(df2,linewidth=1,cmap="jet",xticklabels=3,yticklabels=3)
+        ax2.figure.axes[-1].set_ylabel("Phase (deg)",fontsize=26)
+        ax2.figure.axes[-1].tick_params(labelsize=26)
+        ax2.tick_params(labelsize=26)
+        ax2.set_xlabel("Element number (X axis)",fontsize=26)
+        ax2.set_ylabel("Element number (Y axis)",fontsize=26)
+        fig2.tight_layout()
+        fig2.savefig("synthesis-result/{}/array_weight/{}_phase.jpeg".format(today,savename))
 
         return self
 

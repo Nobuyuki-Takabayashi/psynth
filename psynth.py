@@ -537,7 +537,7 @@ class PhasedArray(object):
     ##################################
     ###### Farfield Calculation ######
     ##################################
-    def plot_farfield(self, phi = 0, distance=0, angle = (-90,90), gain = False, angle_ticks = False, gain_ticks = False, filename = "ff_gain", ext=".png"):
+    def plot_farfield(self, phi = 0, distance=0, angle = (-90,90), gain = False, angle_ticks = False, gain_ticks = False, savename = "ff_gain", ext=".png"):
         # Calculation angle definition
         theta_step_num = self.element_factor_theta.shape[0]
         phi_step_num = self.element_factor_theta.shape[1]
@@ -613,8 +613,8 @@ class PhasedArray(object):
         ax.grid(which="both",c="gainsboro", zorder=9)
         self.farfield_fig = fig
         os.makedirs("synthesis-result/"+today+"/farfield",exist_ok=True)
-        self.farfield_fig.savefig("synthesis-result/"+today+"/farfield/"+filename+ext)
-        pd.DataFrame(np.stack([self.farfield_plot_angle,self.farfield_plot_gain]).T,columns=["Angle (deg)","Gain (dBi)"]).to_csv("synthesis-result/"+today+"/farfield/"+filename+".csv",index=False)
+        self.farfield_fig.savefig("synthesis-result/"+today+"/farfield/"+savename+ext)
+        pd.DataFrame(np.stack([self.farfield_plot_angle,self.farfield_plot_gain]).T,columns=["Angle (deg)","Gain (dBi)"]).to_csv("synthesis-result/"+today+"/farfield/"+savename+".csv",index=False)
         return self
 
 
@@ -697,7 +697,7 @@ class PhasedArray(object):
     ###################################
     ###### Nearfield Calculation ######
     ###################################
-    def plot_nearfield(self, xlim, ylim, z, receiving_area = False, rx_offset = False, xticks=False, yticks=False, clevel=False, cticks=False, rline_width=5, divnum_x=1000, divnum_y=1000):
+    def plot_nearfield(self, xlim, ylim, z, receiving_area = False, rx_offset = False, xticks=False, yticks=False, clevel=False, cticks=False, rline_width=5, divnum_x=1000, divnum_y=1000, savename="nf_power_density",ext="png"):
         xrange = np.linspace(xlim[0],xlim[1],num=divnum_x+1,endpoint=True)/1000 #[m]
         yrange = np.linspace(ylim[0],ylim[1],num=divnum_y+1,endpoint=True)/1000 #[m]
         xrange_mesh, yrange_mesh = np.meshgrid(np.round(xrange,decimals=4), np.round(yrange,decimals=4))
@@ -783,6 +783,8 @@ class PhasedArray(object):
             cbar.set_label(r'$p_{\rm d}\ {\rm [mW/cm^2]}$')
         self.nf_2dcontour_ax = ax
         self.nf_2dcontour_fig = fig
+        os.makedirs("synthesis-result/{}/nearfield".format(today),exist_ok=True)
+        fig.savefig("synthesis-result/{}/nearfield/{}.{}".format(today,savename,ext))
         return self
 
 

@@ -135,6 +135,18 @@ class PhasedArray(object):
              self.excitation_manner = 'focused-beam'
         return self
 
+    def beam_focus_xyz(self, coordinate=(0,0,0)):
+        x = coordinate[0]/1000
+        y = coordinate[1]/1000
+        z = coordinate[2]/1000
+        center_to_target = np.sqrt(x**2+y**2+z**2)
+        xmesh = x - self.antenna_pos_x_mesh
+        ymesh = y - self.antenna_pos_y_mesh
+        element_to_target = np.sqrt(xmesh**2+ymesh**2+z**2)
+        phase_difference = self.wavenumber * (element_to_target-center_to_target)
+        self.array_weight = self.array_weight * np.exp(1j*phase_difference)
+        return self
+
     def multi_beam_synthesis(self,frange,sangle,weight,name, ID=0):
         w = np.sqrt(weight / np.sum(weight))
         self.dir_flag = True
@@ -771,8 +783,8 @@ class PhasedArray(object):
         if yticks:
             ax.set_yticks(yticks)
         if receiving_area:
-            ax.hlines(y=[-receiving_area[1]/2, receiving_area[1]/2], xmin=-receiving_area[0]/2, xmax=receiving_area[0]/2, color='white',linewidth=rline_width)
-            ax.vlines(x=[-receiving_area[0]/2, receiving_area[0]/2], ymin=-receiving_area[1]/2, ymax=receiving_area[1]/2, color='white',linewidth=rline_width)
+            ax.hlines(y=[-receiving_area[1]/2+rx_offset[1], receiving_area[1]/2+rx_offset[1]], xmin=-receiving_area[0]/2+rx_offset[0], xmax=receiving_area[0]/2+rx_offset[0], color='white',linewidth=rline_width)
+            ax.vlines(x=[-receiving_area[0]/2+rx_offset[0], receiving_area[0]/2+rx_offset[0]], ymin=-receiving_area[1]/2+rx_offset[1], ymax=receiving_area[1]/2+rx_offset[1], color='white',linewidth=rline_width)
         im = ax.contourf(self.nearfield_x_mesh*1000,self.nearfield_y_mesh*1000,self.power_density, levels=levels_, cmap='jet',extend='both') #x,y->[mm], pd->[mW/cm2]
         if cticks:
             cbar = fig.colorbar(im, ticks = cticks)

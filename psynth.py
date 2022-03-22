@@ -70,16 +70,19 @@ class PhasedArray(object):
         self.array_manner = "circle"
         return self
 
-    def array_delete(self, xlist, ylist):
-        x_temp = np.delete(self.antenna_pos_x,xlist)
-        y_temp = np.delete(self.antenna_pos_y,ylist)
-        x_num_temp = self.element_num_x - len(xlist)
-        y_num_temp = self.element_num_y - len(ylist)
-        self.element_num_x = x_num_temp
-        self.element_num_y = y_num_temp
-        self.antenna_pos_x = x_temp
-        self.antenna_pos_y = y_temp
-        self.antenna_pos_x_mesh, self.antenna_pos_y_mesh = np.meshgrid(self.antenna_pos_x, self.antenna_pos_y)
+    def array_delete(self, element_mask):
+        aw_after = self.array_weight * element_mask
+        self.array_weight = aw_after / np.sqrt(np.sum(abs(aw_after)**2))
+        self.element_mask = element_mask
+        return self
+
+    def array_delete_power_threshold(self, dB=-50):
+        amp = abs(self.array_weight)
+        power_dB = 10*np.log10(amp**2*1000)
+        power_dB_norm = power_dB - np.max(power_dB)
+        aw_after = self.array_weight * (power_dB_norm>dB)
+        self.array_weight = aw_after / np.sqrt(np.sum(abs(aw_after)**2))
+        self.element_mask = power_dB_norm>dB
         return self
 
     ######################################
@@ -103,10 +106,9 @@ class PhasedArray(object):
 
         return self
 
-    def turn_off_element(self, x_index, y_index):
-        aw_temp = self.array_weight
-        aw_temp[y_index,x_index] = 0
-        self.array_weight = aw_temp/np.sum(abs(aw_temp)**2)
+    def turn_off_element(self, element_mask):
+        aw_after = self.array_weight * element_mask
+        self.array_weight = aw_after / np.sqrt(np.sum(abs(aw_after)**2))
         return self
 
 
@@ -268,31 +270,14 @@ class PhasedArray(object):
         self.excitation_manner = 'happ_genzel'
         return self
 
-    def array_weight_profile(self):
-        ant_xpos = np.round(self.antenna_pos_x_mesh.flatten().reshape(self.element_num_x*self.element_num_y,1)*1000,1)
-        ant_ypos = np.round(self.antenna_pos_y_mesh.flatten().reshape(self.element_num_x*self.element_num_y,1)*1000,1)
-        amplitude_mat = abs(self.array_weight)
-        amplitude = abs(self.array_weight.flatten()).reshape(self.element_num_x*self.element_num_y,1)
-        phase_mat = np.round(np.rad2deg(np.angle(self.array_weight)),2)
-        phase = np.round(np.rad2deg(np.angle(self.array_weight.flatten())).reshape(self.element_num_x*self.element_num_y,1),1)
-        weight = np.hstack([ant_xpos,ant_ypos,amplitude,phase])
-        self.aw_profile = pd.DataFrame(weight,columns=['X [mm]','Y [mm]','Amplitude [lin]','Phase [deg]'])
-        return self
 
-    def array_weight_cst(self,zoffset=0,split_num=2,sequential_block=False,post_fix=False):
+    def export_array_weight(self,zoffset=0,sequential_block=False,split_num=1,savename="array_weight_cst"):
         today_ = datetime.datetime.today()
         today = today_.strftime('%y%m%d')
-        x = np.round(self.antenna_pos_x.reshape(-1,1),4)
-        y = np.round(self.antenna_pos_y.reshape(-1,1),4)
-        z = np.round(np.ones((self.element_num_x*self.element_num_y,1))*zoffset/1000,4)
-        # cord = np.hstack([x,y,z])
-        # df_cord = pd.DataFrame(cord,columns=['X','Y','Z'])
-
-        amp = abs(self.array_weight).reshape(-1,1)
+        phasemat = np.round(np.rad2deg(np.angle(self.array_weight)),1)
+        phimat = np.zeros_like(phasemat)
         if sequential_block:
             block_x, block_y = self.element_num_x // split_num, self.element_num_y // split_num
-            phasemat = np.round(np.rad2deg(np.angle(self.array_weight)),1)
-            print(block_x, block_y)
             for mm in range(split_num):
                 for nn in range(split_num):
                     phasemat[mm * block_y:(mm * block_y + block_y // 2), nn * block_x:(nn * block_x + block_x // 2)] = \
@@ -307,53 +292,55 @@ class PhasedArray(object):
                     phasemat[(mm * block_y + block_y // 2):(mm + 1) * block_y, nn * block_x:(nn * block_x + block_x // 2)] = \
                         phasemat[(mm * block_y + block_y // 2):(mm + 1) * block_y,
                                nn * block_x:(nn * block_x + block_x // 2)] - 270
-            print(phasemat.shape)
-            phase = phasemat.reshape(-1,1)
-            print(phase)
-        else:
-            phase = np.round(np.rad2deg(np.angle(self.array_weight)),1).reshape(-1,1)
-        # weight = np.hstack([amp,phase])
-        # df_weight = pd.DataFrame(weight,columns=['Magnitude','Phase'])
         if sequential_block:
             block_x, block_y = self.element_num_x//split_num, self.element_num_y//split_num
-            phimat = np.zeros((self.element_num_y,self.element_num_x))
             phimat_block = np.zeros((block_y, block_x))
             phi1 = phimat_block[:block_y//2, :block_x//2]
             phi2 = phimat_block[:block_y//2, block_x//2:]+90
             phi3 = phimat_block[block_y//2:, block_x//2:]+180
             phi4 = phimat_block[block_y//2:, :block_x//2]+270
             block_phi = np.vstack([np.hstack([phi1,phi2]),np.hstack([phi4,phi3])])
-            # print(block_phi)
             for m in range(split_num):
                 for n in range(split_num):
                     phimat[block_y*m:block_y*(m+1), block_x*n:block_x*(n+1)] = block_phi
-            phi = phimat.reshape(-1, 1)
-        else:
-            phi = np.zeros(self.element_num_x*self.element_num_y).reshape(-1,1)
-        theta = np.zeros(self.element_num_x*self.element_num_y).reshape(-1,1)
-        gamma = np.zeros(self.element_num_x*self.element_num_y).reshape(-1,1)
-        # rot = np.hstack([phi,theta,gamma])
-        # df_rot = pd.DataFrame(rot,columns=['Phi','Theta','Gamma'])
-        df_num = pd.DataFrame(np.arange(self.element_num_x*self.element_num_y,dtype=np.int64).reshape(-1,1))
+        try:
+            x = np.round(self.antenna_pos_x_mesh[self.element_mask],4).reshape(-1,1)
+            y = np.round(self.antenna_pos_y_mesh[self.element_mask],4).reshape(-1,1)
+            z = np.round(np.ones_like(x)*zoffset/1000,4)
+            amp = abs(self.array_weight)[self.element_mask].reshape(-1,1)
+            phase = phasemat[self.element_mask].reshape(-1,1)
+            phi = phimat[self.element_mask].reshape(-1,1)
+            theta = np.zeros_like(phi)
+            gamma = np.zeros_like(phi)
+        except AttributeError:
+            x = np.round(self.antenna_pos_x_mesh.reshape(-1,1),4)
+            y = np.round(self.antenna_pos_y_mesh.reshape(-1,1),4)
+            z = np.round(np.ones_like(x)*zoffset/1000,4)
+            amp = abs(self.array_weight).reshape(-1,1)
+            phase = phasemat.reshape(-1,1)
+            phi = np.round(phimat,1).reshape(-1,1)
+            theta = np.zeros_like(phi)
+            gamma = np.zeros_like(phi)
+
+        df_num = pd.DataFrame(np.arange(x.size,dtype=np.int64).reshape(-1,1))
         df_full = pd.DataFrame(np.hstack([x,y,z,amp,phase,phi,theta,gamma]))
         df = pd.concat([df_num,df_full],axis=1)
-        os.makedirs('weight/{0}/{1}'.format(self.excitation_manner,today),exist_ok=True)
-        if post_fix:
-            filename = 'cst_import_{}'.format(post_fix)
-        else:
-            filename = 'cst_import'
+        os.makedirs("synthesis-result/{}/array_weight".format(today),exist_ok=True)
         df.T.set_index(pd.MultiIndex(levels=[["# Created by",""],["# Element","X","Y","Z","Magnitude","Phase","Phi","Theta","Gamma"]],\
                 codes=[[0,1,1,1,1,1,1,1,1],[0,1,2,3,4,5,6,7,8]])).T.\
-                to_csv('weight/{}/{}/{}.tsv'.format(self.excitation_manner,today,filename),sep='\t',index=False)
-
+                to_csv("synthesis-result/{}/array_weight/{}.tsv".format(today,savename),sep='\t',index=False)
         return self
 
-    def plot_array_weight(self,savename="array_weight_2d"):
+    def plot_array_weight(self,savename="array_weight_2d",norm=False,xlabel="Element number (X axis)",ylabel="Element number (Y axis)"):
+        amp_ = abs(self.array_weight)
+        amp = np.where(amp_==0,np.nan,amp_)
         try:
-            power = 10*np.log10(abs(self.array_weight)**2 * self.input_power*1000) # [dBm]
+            power = np.where(amp_==0,np.nan,10*np.log10(amp**2 * self.input_power*1000)) # [dBm]
         except AttributeError:
-            power = 10*np.log10(abs(self.array_weight)**2 *1000) # [dBm] Input = 1W
-        phase = np.rad2deg(np.angle(self.array_weight))
+            power = np.where(amp_==0,np.nan,10*np.log10(amp**2 *1000)) # [dBm] Input = 1W
+        if norm:
+            power = power - np.max(power)
+        phase = np.where(amp_==0,np.nan,np.rad2deg(np.angle(self.array_weight)))
         index = np.arange(self.element_num_y,0,-1)
         columns = np.arange(1,self.element_num_x+1)
         df1 = pd.DataFrame(power,index=index,columns=columns)
@@ -364,11 +351,14 @@ class PhasedArray(object):
         ax1 = fig1.add_subplot(111)
         ax1.set_aspect("equal")
         sns.heatmap(df1,linewidth=1,cmap="jet",xticklabels=3,yticklabels=3)
-        ax1.figure.axes[-1].set_ylabel("Power (dBm)",fontsize=26)
+        if norm:
+            ax1.figure.axes[-1].set_ylabel("Power (dB)",fontsize=26)
+        else:
+            ax1.figure.axes[-1].set_ylabel("Power (dBm)",fontsize=26)
         ax1.figure.axes[-1].tick_params(labelsize=26)
         ax1.tick_params(labelsize=26)
-        ax1.set_xlabel("Element number (X axis)",fontsize=26)
-        ax1.set_ylabel("Element number (Y axis)",fontsize=26)
+        ax1.set_xlabel(xlabel,fontsize=26)
+        ax1.set_ylabel(ylabel,fontsize=26)
         fig1.tight_layout()
         os.makedirs("synthesis-result/{}/array_weight".format(today),exist_ok=True)
         fig1.savefig("synthesis-result/{}/array_weight/{}_power.jpeg".format(today,savename))
@@ -381,46 +371,13 @@ class PhasedArray(object):
         ax2.figure.axes[-1].set_ylabel("Phase (deg)",fontsize=26)
         ax2.figure.axes[-1].tick_params(labelsize=26)
         ax2.tick_params(labelsize=26)
-        ax2.set_xlabel("Element number (X axis)",fontsize=26)
-        ax2.set_ylabel("Element number (Y axis)",fontsize=26)
+        ax2.set_xlabel(xlabel,fontsize=26)
+        ax2.set_ylabel(ylabel,fontsize=26)
         fig2.tight_layout()
         fig2.savefig("synthesis-result/{}/array_weight/{}_phase.jpeg".format(today,savename))
 
         return self
 
-    def array_weight_plot(self,axis='x',row=0,fs=20):
-        amp_ = abs(self.array_weight)
-        phase_ = np.rad2deg(np.angle(self.array_weight))
-        if axis=='x':
-            pos = self.antenna_pos_x[row,:]
-            amp = amp_[row,:]
-            phase = phase_[row,:]
-        elif axis=='y':
-            pos = self.antenna_pos_y[:,row]
-            amp = amp_[:,row]
-            phase = phase_[:,row]
-        else:
-            print('axis error')
-            sys.exit()
-        cmap = plt.get_cmap("tab10")
-        amp_fig, amp_ax = plt.subplots(figsize=(12,8))
-        phase_fig, phase_ax = plt.subplots(figsize=(12,8))
-        amp_ax.plot(pos,amp,'o',color=cmap(1),ms=12,linestyle='None')
-        phase_ax.plot(pos,phase,'o',color=cmap(0),ms=12,linestyle='None')
-        amp_ax.set_xlabel('Position [mm]',fontsize=fs)
-        amp_ax.set_ylabel('Amplitude',fontsize=fs)
-        amp_ax.set_ylim([-0.05,1.05])
-        amp_ax.tick_params(axis='x',labelsize=fs)
-        amp_ax.tick_params(axis='y',labelsize=fs)
-        phase_ax.set_xlabel('Position [mm]',fontsize=fs)
-        phase_ax.set_ylabel('Phase [deg]',fontsize=fs)
-        phase_ax.set_ylim([-180,180])
-        phase_ax.tick_params(axis='x',labelsize=fs)
-        phase_ax.tick_params(axis='y',labelsize=fs)
-        self.aw_amp_figure = amp_fig
-        self.aw_phase_figure = phase_fig
-        self.aw_which_row = axis+str(row)
-        return self
 
     def weight_check(self):
         print((abs(self.array_weight)**2).sum())
@@ -549,7 +506,7 @@ class PhasedArray(object):
     ##################################
     ###### Farfield Calculation ######
     ##################################
-    def plot_farfield(self, phi = 0, distance=0, angle = (-90,90), gain = False, angle_ticks = False, gain_ticks = False, savename = "ff_gain", ext=".png"):
+    def plot_farfield(self, phi = 0, distance=0, angle = (-90,90), gain = False, angle_ticks = False, gain_ticks = False, savename = "ff_gain", ext="jpeg"):
         # Calculation angle definition
         theta_step_num = self.element_factor_theta.shape[0]
         phi_step_num = self.element_factor_theta.shape[1]
@@ -625,7 +582,7 @@ class PhasedArray(object):
         ax.grid(which="both",c="gainsboro", zorder=9)
         self.farfield_fig = fig
         os.makedirs("synthesis-result/"+today+"/farfield",exist_ok=True)
-        self.farfield_fig.savefig("synthesis-result/"+today+"/farfield/"+savename+ext)
+        self.farfield_fig.savefig("synthesis-result/{}/farfield/{}.{}".format(today,savename,ext))
         pd.DataFrame(np.stack([self.farfield_plot_angle,self.farfield_plot_gain]).T,columns=["Angle (deg)","Gain (dBi)"]).to_csv("synthesis-result/"+today+"/farfield/"+savename+".csv",index=False)
         return self
 
@@ -697,19 +654,14 @@ class PhasedArray(object):
         return self
 
 
-    def get_index(self):
-        index = np.zeros(y.size)
-        for i in range(y.size):
-            index[i] = np.where(x==y[i])[0]
-        return index.astype(np.int64)
-
-    def set_input_power(self,Pin):
-        self.input_power = Pin
-        return self
     ###################################
     ###### Nearfield Calculation ######
     ###################################
-    def plot_nearfield(self, xlim, ylim, z, receiving_area = False, rx_offset = False, xticks=False, yticks=False, clevel=False, cticks=False, rline_width=5, divnum_x=1000, divnum_y=1000, savename="nf_power_density",ext="png"):
+    def set_input_power(self,Pin):
+        self.input_power = Pin
+        return self
+
+    def plot_nearfield(self, xlim, ylim, z, receiving_area = False, rx_offset = False, xticks=False, yticks=False, clevel=False, cticks=False, rline_width=5, divnum_x=1000, divnum_y=1000, savename="nf_power_density",ext="jpeg"):
         xrange = np.linspace(xlim[0],xlim[1],num=divnum_x+1,endpoint=True)/1000 #[m]
         yrange = np.linspace(ylim[0],ylim[1],num=divnum_y+1,endpoint=True)/1000 #[m]
         xrange_mesh, yrange_mesh = np.meshgrid(np.round(xrange,decimals=4), np.round(yrange,decimals=4))
@@ -760,8 +712,8 @@ class PhasedArray(object):
             # E_phi_sum[i,:,:] = EFphi*AF # [V/m]
             electric_field[i,:,:] = array_factor * element_factor_abs # [V/m]
         self.efield_phase = np.rad2deg(np.angle(np.sum(electric_field,axis=0)))
-        self.power_density = abs(self.calibration_factor * np.sum(electric_field,axis=0))**2 * self.input_power/(4*np.pi) * np.cos(theta_center) * 0.1
-
+        # self.power_density = abs(self.calibration_factor * np.sum(electric_field,axis=0))**2 * self.input_power/(4*np.pi) * np.cos(theta_center) * 0.1
+        self.power_density = abs(self.calibration_factor * np.sum(electric_field,axis=0))**2 * self.input_power/(4*np.pi) * 0.1
         plt.rcParams["font.size"] = 26
         fig = plt.figure(figsize=(12,8))
         ax = fig.add_subplot(111)
@@ -800,7 +752,7 @@ class PhasedArray(object):
         return self
 
 
-    def calculate_received_power(self, xlim, ylim, z, divnum=500):
+    def calculate_received_power(self, xlim, ylim, z, divnum=500, savename="power_reception_profile"):
         xgrid = (xlim[1]-xlim[0])/1000/divnum
         ygrid = (ylim[1]-ylim[0])/1000/divnum
         xshift = xgrid/2
@@ -848,13 +800,51 @@ class PhasedArray(object):
         trp = np.round(self.total_received_power,1)
         eff = np.round(self.total_received_power/self.input_power *100,1)
         dev = np.round(np.std(self.power_density_on_rx)/10,1)
-        print('Maximum Power: '+str(pdmax)+' mW/cm2\nAverage Power: '+str(ave)+' mW/cm2\nTotal Received Power: ' + str(trp)+' W\nBeam Efficiency: ' + str(eff)+' %\nStandard Deviation: '+str(dev)+' mW/cm2')
-        self.efficiency_profile = pd.DataFrame([[pdmax],[ave],[eff],[dev]],index=['Max. Power Density [mW/cm2]','Ave. Power Density [mW/cm2]','Beam Efficiency [%]','Standard Deviation [mW/cm2]'])
+        cv = np.round(np.std(self.power_density_on_rx)/10/np.average(self.power_density_on_rx/10),2)
+        print("Maximum Power: {0} mW/cm2\nAverage Power: {1} mW/cm2\nTotal Received Power: {2} W\nBeam Efficiency: {3} %\nStandard Deviation: {4} mW/cm2\nCoefficient of Variation: {5}".format(pdmax,ave,trp,eff,dev,cv))
+        os.makedirs("synthesis-result/{}/nearfield".format(today),exist_ok=True)
+        pd.DataFrame([[pdmax],[ave],[eff],[dev],[cv]],index=["Max. Power Density [mW/cm2]","Ave. Power Density [mW/cm2]","Beam Efficiency [%]","Standard Deviation [mW/cm2]","Coefficient of Variation"]).to_csv("synthesis-result/{}/nearfield/{}.csv".format(today,savename),header=None)
         return self
 
+    def nf_sidelobe(self,axis="x",savename="temp",offset=0): # first side lobe angle and level
+        if axis=='x':
+            x = self.nearfield_x_mesh[self.nearfield_y_mesh==offset]*1000
+            y_ = self.power_density[self.nearfield_y_mesh==offset]
+            label = "y"
+        elif axis=='y':
+            x = self.nearfield_y_mesh[self.nearfield_x_mesh==offset]*1000
+            y_ = self.power_density[self.nearfield_x_mesh==offset]
+            label = "x"
+        y = 10*np.log10(y_/y_.max())
 
+        sidelobe_pos = x[signal.argrelmax(y)]
+        sidelobe_level = y[signal.argrelmax(y)]
+        sidelobe = np.vstack([sidelobe_pos,sidelobe_level])
+        print("When {}={}\n".format(label,offset))
+        for i, (sla, sll) in enumerate(zip(sidelobe[0],sidelobe[1])):
+            print("{0}.   NF Side Lobe Angle: {1} mm   NF Side Lobe Level: {2} dB\n".format(i,sla,sll))
+        pd.DataFrame(sidelobe).to_csv("synthesis-result/{}/nearfield/{}_nf-sidelobe_when_{}={}.csv".format(today,savename,label,offset))
+        return self
+
+    def hpbw_planar(self):
+        x = self.nearfield_x_mesh[self.nearfield_y_mesh==0]*1000
+        P1_ = self.power_density[self.nearfield_y_mesh==0]
+        P1 = P1_/P1_.max()
+        P1_hpbw = x[P1>=0.5]
+        y = self.nearfield_y_mesh[self.nearfield_x_mesh==0]*1000
+        P2_ = self.power_density[self.nearfield_x_mesh==0]
+        P2 = P2_/P2_.max()
+        P2_hpbw = y[P2>=0.5]
+        self.hpbw_data = pd.DataFrame([[P1_hpbw[0],P1_hpbw[-1]],[P2_hpbw[0],P2_hpbw[-1]]],index=['x_hpbw [mm]','y_hpbw [mm]'])
+        print('Planar Half Power Beam Width\nX:'+str(P1_hpbw[-1]-P1_hpbw[0])+' mm\nY:'+str(P2_hpbw[-1]-P2_hpbw[0])+' mm')
+        return self
 
 #############################################################################################
+#############################################################################################
+#############################################################################################
+#############################################################################################
+#############################################################################################
+# Reference
 
     def pattern_3Dcontour(self, xlim, ylim, zlim, Pin, xstep=1, ystep=1 ,zstep=1):
         xlim = np.array(xlim)/1000
@@ -1088,18 +1078,7 @@ class PhasedArray(object):
         return self
 
 
-    def hpbw_planar(self):
-        x = self.nearfield_x_mesh[self.nearfield_y_mesh==0]*1000
-        P1_ = self.power_density[self.nearfield_y_mesh==0]
-        P1 = P1_/P1_.max()
-        P1_hpbw = x[P1>=0.5]
-        y = self.nearfield_y_mesh[self.nearfield_x_mesh==0]*1000
-        P2_ = self.power_density[self.nearfield_x_mesh==0]
-        P2 = P2_/P2_.max()
-        P2_hpbw = y[P2>=0.5]
-        self.hpbw_data = pd.DataFrame([[P1_hpbw[0],P1_hpbw[-1]],[P2_hpbw[0],P2_hpbw[-1]]],index=['x_hpbw [mm]','y_hpbw [mm]'])
-        print('Planar Half Power Beam Width\nX:'+str(P1_hpbw[-1]-P1_hpbw[0])+' mm\nY:'+str(P2_hpbw[-1]-P2_hpbw[0])+' mm')
-        return self
+
 
     def plot_1Dplane(self, xlim=False, ylim=False, axis="x", offset=0, plot_type='linear', rline=False, xr=0, yr=0):
         plt.rcParams["font.size"] = 24
@@ -1132,6 +1111,7 @@ class PhasedArray(object):
                 ax.vlines([-xr/2,xr/2],ymin,ymax,colors='red')
             if axis == 'y':
                 ax.vlines([-yr/2,yr/2],ymin,ymax,colors='red')
+        ax.grid(which="both",c='gainsboro', zorder=9)
         self.nf_1dplot_fig = fig
 
         return self
@@ -1207,6 +1187,50 @@ class PhasedArray(object):
         total_profile.to_csv('plot/2D/'+self.excitation_manner+'/'+today+'/rectenna_profile.csv',header=None)
         return rect_eff
 
+    def array_weight_plot(self,axis='x',row=0,fs=20):
+        amp_ = abs(self.array_weight)
+        phase_ = np.rad2deg(np.angle(self.array_weight))
+        if axis=='x':
+            pos = self.antenna_pos_x[row,:]
+            amp = amp_[row,:]
+            phase = phase_[row,:]
+        elif axis=='y':
+            pos = self.antenna_pos_y[:,row]
+            amp = amp_[:,row]
+            phase = phase_[:,row]
+        else:
+            print('axis error')
+            sys.exit()
+        cmap = plt.get_cmap("tab10")
+        amp_fig, amp_ax = plt.subplots(figsize=(12,8))
+        phase_fig, phase_ax = plt.subplots(figsize=(12,8))
+        amp_ax.plot(pos,amp,'o',color=cmap(1),ms=12,linestyle='None')
+        phase_ax.plot(pos,phase,'o',color=cmap(0),ms=12,linestyle='None')
+        amp_ax.set_xlabel('Position [mm]',fontsize=fs)
+        amp_ax.set_ylabel('Amplitude',fontsize=fs)
+        amp_ax.set_ylim([-0.05,1.05])
+        amp_ax.tick_params(axis='x',labelsize=fs)
+        amp_ax.tick_params(axis='y',labelsize=fs)
+        phase_ax.set_xlabel('Position [mm]',fontsize=fs)
+        phase_ax.set_ylabel('Phase [deg]',fontsize=fs)
+        phase_ax.set_ylim([-180,180])
+        phase_ax.tick_params(axis='x',labelsize=fs)
+        phase_ax.tick_params(axis='y',labelsize=fs)
+        self.aw_amp_figure = amp_fig
+        self.aw_phase_figure = phase_fig
+        self.aw_which_row = axis+str(row)
+        return self
+
+    def array_weight_profile(self):
+        ant_xpos = np.round(self.antenna_pos_x_mesh.flatten().reshape(self.element_num_x*self.element_num_y,1)*1000,1)
+        ant_ypos = np.round(self.antenna_pos_y_mesh.flatten().reshape(self.element_num_x*self.element_num_y,1)*1000,1)
+        amplitude_mat = abs(self.array_weight)
+        amplitude = abs(self.array_weight.flatten()).reshape(self.element_num_x*self.element_num_y,1)
+        phase_mat = np.round(np.rad2deg(np.angle(self.array_weight)),2)
+        phase = np.round(np.rad2deg(np.angle(self.array_weight.flatten())).reshape(self.element_num_x*self.element_num_y,1),1)
+        weight = np.hstack([ant_xpos,ant_ypos,amplitude,phase])
+        self.aw_profile = pd.DataFrame(weight,columns=['X [mm]','Y [mm]','Amplitude [lin]','Phase [deg]'])
+        return self
 
 
     def save_results(self,save_ff,save_nf,save_aw,save_awp,save_ef):

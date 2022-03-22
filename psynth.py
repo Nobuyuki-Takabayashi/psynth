@@ -661,7 +661,7 @@ class PhasedArray(object):
         self.input_power = Pin
         return self
 
-    def plot_nearfield(self, xlim, ylim, z, receiving_area = False, rx_offset = False, xticks=False, yticks=False, clevel=False, cticks=False, rline_width=5, divnum_x=1000, divnum_y=1000, savename="nf_power_density",ext="jpeg"):
+    def plot_nearfield(self, xlim, ylim, z, receiving_area = False, rx_offset = (0,0), xticks=False, yticks=False, clevel=False, cticks=False, rline_width=5, divnum_x=1000, divnum_y=1000, savename="nf_power_density",ext="jpeg"):
         xrange = np.linspace(xlim[0],xlim[1],num=divnum_x+1,endpoint=True)/1000 #[m]
         yrange = np.linspace(ylim[0],ylim[1],num=divnum_y+1,endpoint=True)/1000 #[m]
         xrange_mesh, yrange_mesh = np.meshgrid(np.round(xrange,decimals=4), np.round(yrange,decimals=4))
